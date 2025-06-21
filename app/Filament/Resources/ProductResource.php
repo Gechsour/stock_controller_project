@@ -2,16 +2,22 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\ProductResource\Pages;
-use App\Filament\Resources\ProductResource\RelationManagers;
 use App\Models\Product;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\FileUpload;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ImageColumn;
+use App\Filament\Resources\ProductResource\Pages;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\BulkActionGroup;
 
 class ProductResource extends Resource
 {
@@ -21,99 +27,108 @@ class ProductResource extends Resource
 
     public static function form(Form $form): Form
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('name')
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('product_code')
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('brand')
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('category_id')
-                    ->required()
-                    ->numeric(),
-                Forms\Components\TextInput::make('supplier_id')
-                    ->required()
-                    ->numeric(),
-                Forms\Components\TextInput::make('price')
-                    ->required()
-                    ->numeric()
-                    ->prefix('$'),
-                Forms\Components\TextInput::make('cost_price')
-                    ->required()
-                    ->numeric(),
-                Forms\Components\TextInput::make('quantity')
-                    ->required()
-                    ->numeric()
-                    ->default(0),
-                Forms\Components\TextInput::make('low_stock_alert')
-                    ->required()
-                    ->numeric()
-                    ->default(5),
-                Forms\Components\TextInput::make('unit')
-                    ->maxLength(255),
-                Forms\Components\FileUpload::make('image')
-                    ->image(),
-                Forms\Components\Textarea::make('description')
-                    ->columnSpanFull(),
-            ]);
-    }
+        return $form->schema([
+            TextInput::make('name')
+                ->required()
+                ->maxLength(255),
 
+            TextInput::make('product_code')
+                ->required()
+                ->maxLength(255),
+
+            TextInput::make('brand')
+                ->maxLength(255),
+
+            // Category dropdown
+            Select::make('category_id')
+                ->label('Category')
+                ->relationship('category', 'name')
+                ->searchable()
+                ->preload()
+                ->required(),
+
+            // Supplier dropdown
+            Select::make('supplier_id')
+                ->label('Supplier')
+                ->relationship('supplier', 'name')
+                ->searchable()
+                ->preload()
+                ->required(),
+
+            TextInput::make('price')
+                ->required()
+                ->numeric()
+                ->prefix('$'),
+
+            TextInput::make('cost_price')
+                ->required()
+                ->numeric(),
+
+            TextInput::make('quantity')
+                ->required()
+                ->numeric()
+                ->default(0),
+
+            TextInput::make('low_stock_alert')
+                ->required()
+                ->numeric()
+                ->default(5),
+
+            TextInput::make('unit')
+                ->maxLength(255),
+
+            FileUpload::make('image')
+                    ->label('Product Image')
+                    ->image()
+                    ->imageEditor()
+                    ->directory('') // Leave blank because 'video_pic' is already the root
+                    ->disk('public_uploads') // Use your custom disk
+                    ->visibility('public')
+                    ->getUploadedFileNameForStorageUsing(fn($file) => $file->hashName())
+                    ->required(fn($record) => $record === null)
+                    ->enableDownload()
+                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                    ->maxSize(2048),
+
+            Textarea::make('description')
+                ->columnSpanFull(),
+        ]);
+    }
 
     public static function table(Table $table): Table
-    {
-        return $table
-            ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('product_code')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('brand')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('category_id')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('supplier_id')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('price')
-                    ->money()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('cost_price')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('quantity')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('low_stock_alert')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('unit')
-                    ->searchable(),
-                Tables\Columns\ImageColumn::make('image'),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            ->filters([
-                //
-            ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
-    }
+{
+    return $table->columns([
+        TextColumn::make('name')->searchable(),
+        TextColumn::make('product_code')->searchable(),
+        TextColumn::make('brand')->searchable(),
+        TextColumn::make('category.name')->label('Category'),
+        TextColumn::make('supplier.name')->label('Supplier'),
+        TextColumn::make('price')->money()->sortable(),
+        TextColumn::make('cost_price')->numeric()->sortable(),
+        TextColumn::make('quantity')->numeric()->sortable(),
+        TextColumn::make('low_stock_alert')->numeric()->sortable(),
+        TextColumn::make('unit')->searchable(),
+
+        Tables\Columns\ImageColumn::make('image')
+                    ->label('Image')
+                    ->getStateUsing(fn($record) => $record->image ? asset('product/' . $record->image) : null),
+
+        TextColumn::make('created_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
+        TextColumn::make('updated_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
+    ])
+    ->filters([
+        //
+    ])
+    ->actions([
+        EditAction::make(),
+    ])
+    ->bulkActions([
+        BulkActionGroup::make([
+            DeleteBulkAction::make(),
+        ]),
+    ]);
+}
+
 
     public static function getRelations(): array
     {

@@ -38,6 +38,13 @@ return [
             'report' => false,
         ],
 
+        'public_uploads' => [
+            'driver' => 'local',
+            'root' => public_path('product'), // Directly inside public folder
+            'url' => env('APP_URL') . '/product',
+            'visibility' => 'public',
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
